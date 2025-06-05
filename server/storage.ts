@@ -278,11 +278,16 @@ export class DatabaseStorage implements IStorage {
 
   // Activity Log operations
   async createActivityLog(insertActivity: InsertActivityLog): Promise<ActivityLog> {
-    const [activity] = await db
-      .insert(activityLog)
-      .values(insertActivity)
-      .returning();
-    return activity;
+    try {
+      const [activity] = await db
+        .insert(activityLog)
+        .values(insertActivity)
+        .returning();
+      return activity;
+    } catch (error) {
+      console.error("Erro ao criar log de atividade:", error);
+      throw new Error("Falha ao criar log de atividade");
+    }
   }
 
   async getRecentActivity(limit: number = 10): Promise<ActivityLog[]> {

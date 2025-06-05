@@ -8,12 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { isUnauthorizedError, handleUnauthorizedError } from "@/lib/auth-utils";
+import { apiRequest } from "@/lib/api";
+import { isUnauthorizedError, handleUnauthorizedError } from "@/lib/auth";
 import ProductAutocomplete from "./product-autocomplete";
 import type { PaletizadoStockWithProduct, Product } from "@shared/schema";
+import { toast } from "sonner";
 
 interface PaletizadoFormModalProps {
   isOpen: boolean;
@@ -41,7 +41,6 @@ export default function PaletizadoFormModal({
   });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -64,104 +63,66 @@ export default function PaletizadoFormModal({
     }
   }, [stock, isOpen]);
 
+  const handleError = (error: unknown) => {
+    if (isUnauthorizedError(error)) {
+      handleUnauthorizedError();
+      return;
+    }
+    if (error instanceof Error) {
+      toast.error(error.message);
+    } else {
+      toast.error("Ocorreu um erro ao processar sua solicitação");
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: { productCode: string; quantity: number }) => {
-      const response = await apiRequest("POST", "/api/paletizado-stock", data);
-      return response.json();
+      return apiRequest<{ message?: string }>("POST", "/api/paletizado-stock", data);
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["/api/paletizado-stock"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({
-        title: "Estoque criado",
-        description: "O estoque foi criado com sucesso.",
-      });
+      toast.success(response.message || "Estoque criado com sucesso");
       onClose();
     },
     onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          handleUnauthorizedError();
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Erro ao criar estoque",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Erro ao criar estoque");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { quantity: number }) => {
-      const response = await apiRequest("PUT", `/api/paletizado-stock/${stock!.id}`, data);
-      return response.json();
+    mutationFn: async (data: { id: number; quantity: number }) => {
+      return apiRequest<{ message?: string }>("PUT", `/api/paletizado-stock/${data.id}`, {
+        quantity: data.quantity,
+      });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["/api/paletizado-stock"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({
-        title: "Estoque atualizado",
-        description: "O estoque foi atualizado com sucesso.",
-      });
+      toast.success(response.message || "Estoque atualizado com sucesso");
       onClose();
     },
     onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          handleUnauthorizedError();
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Erro ao atualizar estoque",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Erro ao atualizar estoque");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/paletizado-stock/${stock!.id}`);
+      return apiRequest("DELETE", `/api/paletizado-stock/${stock!.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/paletizado-stock"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({
-        title: "Estoque eliminado",
-        description: "O estoque foi eliminado com sucesso.",
-      });
+      toast.success("Estoque eliminado com sucesso");
       onClose();
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          handleUnauthorizedError();
-        }, 500);
+        handleUnauthorizedError();
         return;
       }
-      toast({
-        title: "Erro ao eliminar estoque",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error instanceof Error ? error.message : "Erro ao eliminar estoque");
     },
   });
 
@@ -188,32 +149,26 @@ export default function PaletizadoFormModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.productCode || !selectedProduct) {
-      toast({
-        title: "Produto obrigatório",
-        description: "Selecione um produto válido.",
-        variant: "destructive",
-      });
+    if (!selectedProduct) {
+      toast.error("Selecione um produto");
       return;
     }
 
-    if (formData.quantity <= 0) {
-      toast({
-        title: "Quantidade inválida",
-        description: "A quantidade deve ser maior que zero.",
-        variant: "destructive",
-      });
+    const quantity = Number(formData.quantity);
+    if (isNaN(quantity) || quantity < 0) {
+      toast.error("Quantidade inválida");
       return;
     }
 
     if (stock) {
       updateMutation.mutate({
-        quantity: formData.quantity,
+        id: stock.id,
+        quantity,
       });
     } else {
       createMutation.mutate({
-        productCode: formData.productCode,
-        quantity: formData.quantity,
+        productCode: selectedProduct.code,
+        quantity,
       });
     }
   };
@@ -250,9 +205,20 @@ export default function PaletizadoFormModal({
             <Input
               id="productCode"
               value={formData.productCode}
-              placeholder="Preenchido automaticamente"
-              readOnly
+              disabled
               className="bg-muted"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Quantidade *</Label>
+            <Input
+              id="quantity"
+              type="number"
+              min="0"
+              value={formData.quantity}
+              onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
+              required
             />
           </div>
 
@@ -261,52 +227,23 @@ export default function PaletizadoFormModal({
             <Input
               id="category"
               value={formData.category}
-              placeholder="Preenchido automaticamente"
-              readOnly
+              disabled
               className="bg-muted"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Quantidade de Paletizados *</Label>
-            <Input
-              id="quantity"
-              type="number"
-              value={formData.quantity}
-              onChange={(e) =>
-                setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })
-              }
-              placeholder="0"
-              min="1"
-              required
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button
-              type="submit"
-              disabled={createMutation.isPending || updateMutation.isPending}
-              className="flex-1"
-            >
-              {createMutation.isPending || updateMutation.isPending
-                ? "Salvando..."
-                : stock
-                ? "Atualizar"
-                : "Salvar"}
-            </Button>
+          <div className="flex justify-end gap-2">
             {stock && (
               <Button
                 type="button"
                 variant="destructive"
                 onClick={handleEliminate}
-                disabled={deleteMutation.isPending}
-                className="flex-1"
               >
-                {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+                Eliminar
               </Button>
             )}
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
+            <Button type="submit">
+              {stock ? "Atualizar" : "Criar"}
             </Button>
           </div>
         </form>

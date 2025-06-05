@@ -247,33 +247,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const product = await storage.getProductByCode(productCode);
       if (!product) {
-        return res.status(404).json({ message: "Product not found" });
+        return res.status(404).json({ message: "Produto não encontrado" });
       }
 
-      const totalUnits = (bases * product.unitsPerBase) + looseUnits;
-      
+      // Validar dados do pico
       const picoData = insertPicoSchema.parse({
         productId: product.id,
         bases,
         looseUnits,
-        totalUnits,
+        totalUnits: (bases * product.unitsPerBase) + looseUnits,
         towerLocation,
       });
 
+      // Criar o pico
       const pico = await storage.createPico(picoData);
-      
-      // Log activity
-      await storage.createActivityLog({
-        type: "entry",
-        productCode: product.code,
-        productDescription: product.description,
-        quantity: totalUnits,
-        category: product.category,
-      });
+
+      // Criar log de atividade
+      try {
+        await storage.createActivityLog({
+          type: "entry",
+          itemType: "pico",
+          productCode: product.code,
+          productDescription: product.description,
+          quantity: pico.totalUnits,
+          category: product.category,
+        });
+      } catch (logError) {
+        console.error("Erro ao criar log de atividade:", logError);
+        // Não falhar a operação se o log falhar
+      }
 
       res.json(pico);
     } catch (error) {
-      res.status(400).json({ message: "Invalid pico data" });
+      console.error("Erro ao criar pico:", error);
+      if (error instanceof Error) {
+        res.status(400).json({ message: `Dados inválidos: ${error.message}` });
+      } else {
+        res.status(400).json({ message: "Dados inválidos" });
+      }
     }
   });
 
@@ -306,78 +317,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/picos/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      
-      const pico = await storage.getPico(id);
-      if (!pico) {
-        return res.status(404).json({ message: "Pico not found" });
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID inválido" });
       }
 
-      await storage.deletePico(id);
-      
-      // Log activity
-      await storage.createActivityLog({
-        type: "exit",
-        productCode: pico.product.code,
-        productDescription: pico.product.description,
-        quantity: pico.totalUnits,
-        category: pico.product.category,
-      });
+      // Buscar o pico antes de eliminar para ter as informações para o log
+      const pico = await storage.getPico(id);
+      if (!pico) {
+        return res.status(404).json({ message: "Pico não encontrado" });
+      }
 
-      res.json({ message: "Pico eliminated successfully" });
+      // Eliminar o pico
+      await storage.deletePico(id);
+
+      // Criar log de atividade
+      try {
+        await storage.createActivityLog({
+          type: "exit",
+          itemType: "pico",
+          productCode: pico.product.code,
+          productDescription: pico.product.description,
+          quantity: pico.totalUnits,
+          category: pico.product.category,
+        });
+      } catch (logError) {
+        console.error("Erro ao criar log de atividade:", logError);
+        // Não falhar a operação se o log falhar
+      }
+
+      res.json({ message: "Pico eliminado com sucesso" });
     } catch (error) {
-      res.status(400).json({ message: "Failed to eliminate pico" });
+      console.error("Erro ao eliminar pico:", error);
+      if (error instanceof Error) {
+        res.status(400).json({ message: `Erro ao eliminar pico: ${error.message}` });
+      } else {
+        res.status(400).json({ message: "Erro ao eliminar pico" });
+      }
     }
   });
 
-  // Paletizado Stock management routes
+  // Paletizado Stock routes
   app.get("/api/paletizado-stock", requireAuth, async (req, res) => {
     try {
       const stock = await storage.getAllPaletizadoStock();
       res.json(stock);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch paletizado stock" });
+      console.error("Erro ao buscar estoque paletizado:", error);
+      res.status(500).json({ message: "Erro ao buscar estoque paletizado" });
     }
   });
 
   app.post("/api/paletizado-stock", requireAuth, async (req, res) => {
     try {
       const { productCode, quantity } = req.body;
+
+      // Validação básica
+      if (!productCode || typeof productCode !== "string") {
+        return res.status(400).json({ message: "Código do produto é obrigatório" });
+      }
+
+      const parsedQuantity = Number(quantity);
+      if (isNaN(parsedQuantity) || parsedQuantity < 0) {
+        return res.status(400).json({ message: "Quantidade deve ser um número maior ou igual a zero" });
+      }
       
+      // Verificar se o produto existe
       const product = await storage.getProductByCode(productCode);
       if (!product) {
-        return res.status(404).json({ message: "Product not found" });
+        return res.status(404).json({ message: "Produto não encontrado" });
       }
 
-      // Check if stock already exists for this product
+      // Verificar se já existe estoque para este produto
       const existingStock = await storage.getPaletizadoStockByProductId(product.id);
-      
-      let stock;
       if (existingStock) {
-        // Update existing stock
-        stock = await storage.updatePaletizadoStock(existingStock.id, {
-          quantity: existingStock.quantity + quantity,
-        });
-      } else {
-        // Create new stock entry
-        const stockData = insertPaletizadoStockSchema.parse({
-          productId: product.id,
-          quantity,
-        });
-        stock = await storage.createPaletizadoStock(stockData);
+        return res.status(400).json({ message: "Já existe estoque para este produto" });
       }
 
-      // Log activity
-      await storage.createActivityLog({
-        type: "entry",
-        productCode: product.code,
-        productDescription: product.description,
-        quantity,
-        category: product.category,
+      // Criar o estoque
+      const stock = await storage.createPaletizadoStock({
+        productId: product.id,
+        quantity: parsedQuantity,
       });
+
+      // Criar log de atividade
+      try {
+        await storage.createActivityLog({
+          type: "entry",
+          itemType: "paletizado",
+          productCode: product.code,
+          productDescription: product.description,
+          quantity: parsedQuantity,
+          category: product.category,
+        });
+      } catch (logError) {
+        // Se falhar ao criar o log, ainda retornamos sucesso
+        return res.status(200).json({
+          ...stock,
+          message: "Estoque criado com sucesso, mas houve um erro ao registrar o log de atividade"
+        });
+      }
 
       res.json(stock);
     } catch (error) {
-      res.status(400).json({ message: "Invalid stock data" });
+      if (error instanceof Error) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(400).json({ message: "Dados inválidos para criar estoque" });
+      }
     }
   });
 
@@ -385,37 +431,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const { quantity } = req.body;
-      
-      const stock = await storage.updatePaletizadoStock(id, { quantity });
-      res.json(stock);
+
+      if (typeof quantity !== "number" || quantity < 0) {
+        return res.status(400).json({ message: "Quantidade inválida" });
+      }
+
+      const stock = await storage.getPaletizadoStock(id);
+      if (!stock) {
+        return res.status(404).json({ message: "Estoque não encontrado" });
+      }
+
+      const updatedStock = await storage.updatePaletizadoStock(id, { quantity });
+
+      // Criar log de atividade
+      try {
+        await storage.createActivityLog({
+          type: "update",
+          itemType: "paletizado",
+          productCode: stock.product.code,
+          productDescription: stock.product.description,
+          quantity,
+          category: stock.product.category,
+        });
+      } catch (logError) {
+        console.error("Erro ao criar log de atividade:", logError);
+        // Não falhar a operação se o log falhar
+      }
+
+      res.json(updatedStock);
     } catch (error) {
-      res.status(400).json({ message: "Failed to update stock" });
+      console.error("Erro ao atualizar estoque paletizado:", error);
+      res.status(400).json({ message: "Erro ao atualizar estoque" });
     }
   });
 
   app.delete("/api/paletizado-stock/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      
+
       const stock = await storage.getPaletizadoStock(id);
       if (!stock) {
-        return res.status(404).json({ message: "Stock not found" });
+        return res.status(404).json({ message: "Estoque não encontrado" });
       }
 
-      await storage.deletePaletizadoStock(id);
-      
-      // Log activity
-      await storage.createActivityLog({
-        type: "exit",
+      // Salvar informações para o log antes de deletar
+      const stockInfo = {
         productCode: stock.product.code,
         productDescription: stock.product.description,
-        quantity: stock.quantity,
         category: stock.product.category,
-      });
+      };
 
-      res.json({ message: "Stock eliminated successfully" });
+      await storage.deletePaletizadoStock(id);
+
+      // Criar log de atividade
+      try {
+        await storage.createActivityLog({
+          type: "exit",
+          itemType: "paletizado",
+          productCode: stockInfo.productCode,
+          productDescription: stockInfo.productDescription,
+          quantity: 0,
+          category: stockInfo.category,
+        });
+      } catch (logError) {
+        console.error("Erro ao criar log de atividade:", logError);
+        // Não falhar a operação se o log falhar
+      }
+
+      res.json({ message: "Estoque eliminado com sucesso" });
     } catch (error) {
-      res.status(400).json({ message: "Failed to eliminate stock" });
+      console.error("Erro ao eliminar estoque paletizado:", error);
+      res.status(400).json({ message: "Erro ao eliminar estoque" });
     }
   });
 

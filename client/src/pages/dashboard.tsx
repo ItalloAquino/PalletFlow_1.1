@@ -20,6 +20,7 @@ interface DashboardStats {
   recentEntries: Array<{
     id: number;
     type: string;
+    itemType: string;
     productCode: string;
     productDescription: string;
     quantity: number;
@@ -29,6 +30,7 @@ interface DashboardStats {
   recentExits: Array<{
     id: number;
     type: string;
+    itemType: string;
     productCode: string;
     productDescription: string;
     quantity: number;
@@ -168,10 +170,10 @@ export default function DashboardPage() {
                   >
                     <div>
                       <p className="font-medium text-foreground">
-                        {entry.productCode}
+                        {entry.productDescription}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {entry.quantity} unidades
+                        {entry.quantity} unidades ({entry.itemType === "pico" ? "Pico" : "Paletizado"})
                       </p>
                     </div>
                     <div className="text-right">
@@ -217,10 +219,10 @@ export default function DashboardPage() {
                   >
                     <div>
                       <p className="font-medium text-foreground">
-                        {exit.productCode}
+                        {exit.productDescription}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {exit.quantity} unidades
+                        {exit.quantity} unidades ({exit.itemType === "pico" ? "Pico" : "Paletizado"})
                       </p>
                     </div>
                     <div className="text-right">

@@ -67,6 +67,7 @@ export const paletizadoStock = pgTable("paletizado_stock", {
 export const activityLog = pgTable("activity_log", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(), // 'entry' or 'exit'
+  itemType: text("item_type").notNull(), // 'pico' or 'paletizado'
   productCode: text("product_code").notNull(),
   productDescription: text("product_description").notNull(),
   quantity: integer("quantity").notNull(),
@@ -124,6 +125,9 @@ export const insertPaletizadoStockSchema = createInsertSchema(paletizadoStock).o
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  productId: z.number().positive("ID do produto é obrigatório"),
+  quantity: z.number().min(0, "Quantidade deve ser maior ou igual a zero"),
 });
 
 export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
