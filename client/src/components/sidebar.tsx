@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 export default function Sidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, clearAuth } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -31,10 +31,12 @@ export default function Sidebar() {
         title: "Logout realizado",
         description: "Você foi desconectado com sucesso.",
       });
+      clearAuth();
     },
     onError: () => {
       // Even if the logout request fails, clear the client cache
       queryClient.clear();
+      clearAuth();
     },
   });
 
@@ -75,7 +77,7 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="fixed left-0 top-0 h-full w-64 bg-card shadow-lg z-40 border-r">
+    <div className="fixed left-0 top-0 h-full w-64 md:w-48 bg-card shadow-lg z-40 border-r">
       <div className="p-6 border-b">
         <div className="flex items-center">
           <Warehouse className="h-8 w-8 text-primary mr-3" />
@@ -92,16 +94,16 @@ export default function Sidebar() {
         {navItems
           .filter((item) => item.show)
           .map((item) => (
-            <Link key={item.href} href={item.href}>
-              <a
-                className={cn(
-                  "nav-item",
-                  isActive(item.href) && "active"
-                )}
-              >
-                <item.icon className="h-5 w-5 mr-3" />
-                {item.label}
-              </a>
+            <Link 
+              key={item.href} 
+              href={item.href}
+              className={cn(
+                "flex items-center px-6 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+                isActive(item.href) && "bg-accent text-foreground"
+              )}
+            >
+              <item.icon className="h-5 w-5 mr-3" />
+              {item.label}
             </Link>
           ))}
       </nav>

@@ -9,9 +9,18 @@ import { Plus, Search, Printer, Edit, Trash2 } from "lucide-react";
 import PicoFormModal from "@/components/pico-form-modal";
 import PaletizadoFormModal from "@/components/paletizado-form-modal";
 import type { PicoWithProduct, PaletizadoStockWithProduct } from "@shared/schema";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isPicoModalOpen, setIsPicoModalOpen] = useState(false);
   const [isPaletizadoModalOpen, setIsPaletizadoModalOpen] = useState(false);
   const [editingPico, setEditingPico] = useState<PicoWithProduct | null>(null);
@@ -25,11 +34,17 @@ export default function InventoryPage() {
     queryKey: ["/api/paletizado-stock"],
   });
 
-  // Filter picos based on search term
-  const filteredPicos = picos?.filter((pico) =>
-    pico.product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pico.product.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter picos based on search term and category
+  const filteredPicos = picos?.filter((pico) => {
+    const matchesSearch = pico.product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pico.product.description.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCategory = categoryFilter === "all" || 
+      (categoryFilter === "alta_rotacao" && pico.product.category === "alta_rotacao") ||
+      (categoryFilter === "baixa_rotacao" && pico.product.category === "baixa_rotacao");
+
+    return matchesSearch && matchesCategory;
+  });
 
   // Filter paletizado stock based on search term
   const filteredPaletizadoStock = paletizadoStock?.filter((stock) =>
@@ -40,6 +55,12 @@ export default function InventoryPage() {
   const handlePrintPicos = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
+
+    const categoryLabel = categoryFilter === "all" 
+      ? "Todas as categorias" 
+      : categoryFilter === "alta_rotacao" 
+        ? "Alta Rotação" 
+        : "Baixa Rotação";
 
     const html = `
       <html>
@@ -52,12 +73,17 @@ export default function InventoryPage() {
             .print-table th, .print-table td { border: 1px solid #000; padding: 8px; text-align: left; }
             .print-table th { background-color: #f0f0f0; font-weight: bold; }
             .extra-lines { height: 200px; border-bottom: 1px solid #ccc; }
+            .filter-info { margin-bottom: 20px; }
           </style>
         </head>
         <body>
           <div class="header">
             <h1>PalletFlow - Relatório de Picos</h1>
             <p>Data: ${new Date().toLocaleDateString("pt-BR")}</p>
+            <div class="filter-info">
+              <p><strong>Categoria:</strong> ${categoryLabel}</p>
+              ${searchTerm ? `<p><strong>Busca:</strong> ${searchTerm}</p>` : ""}
+            </div>
           </div>
           <table class="print-table">
             <thead>
@@ -146,7 +172,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-8 md:p-[1.8rem]">
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-foreground">Controle de Estoque</h2>
         <p className="text-muted-foreground">Gestão de Picos e Paletizados</p>
@@ -182,6 +208,19 @@ export default function InventoryPage() {
                       className="pl-10"
                     />
                   </div>
+                  <Select
+                    value={categoryFilter}
+                    onValueChange={setCategoryFilter}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Filtrar por categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as categorias</SelectItem>
+                      <SelectItem value="alta_rotacao">Alta Rotação</SelectItem>
+                      <SelectItem value="baixa_rotacao">Baixa Rotação</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button onClick={handlePrintPicos} variant="outline">
                     <Printer className="h-4 w-4 mr-2" />
                     Imprimir
