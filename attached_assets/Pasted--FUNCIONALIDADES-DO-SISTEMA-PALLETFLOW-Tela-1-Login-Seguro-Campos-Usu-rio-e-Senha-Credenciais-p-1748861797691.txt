@@ -1,0 +1,105 @@
+🧩 FUNCIONALIDADES DO SISTEMA PALLETFLOW
+Tela 1: Login Seguro
+Campos: Usuário e Senha
+
+Credenciais padrão: usuario: admin, senha: admin
+
+Regras:
+
+Primeiro acesso obriga alteração de senha
+
+Após alteração, o sistema exige relogin com a nova senha
+
+Acesso concedido apenas após segundo login
+
+Tela 2: Dashboard
+Exibe estatísticas operacionais:
+
+Total de Picos e Paletizados no armazém
+
+Separação por categoria: Alta Rotação e Baixa Rotação
+
+Quantidade de Picos e Paletizados entrados ontem e entrando hoje
+
+Qualquer outro dado relevante operacional
+
+Tela 3: Cadastro
+Subseções:
+
+Usuários
+
+Acesso: Apenas administrador pode cadastrar novos usuários
+
+Campos: Nome, Apelido, Usuário, Senha, Nível (Administrador ou Armazenista)
+
+Usuários podem alterar apenas sua própria senha
+
+Paletizados
+
+Acesso: Apenas administrador pode cadastrar, editar e deletar
+
+Armazenistas podem apenas alterar o estoque
+
+Campos:
+
+Código (manual, obrigatório)
+
+Descrição
+
+Quantidade de Bases
+
+Quantidade por Base (Unidades)
+
+Categoria (Alta ou Baixa Rotação - dropdown, não editável após cadastro)
+
+Tela 4: Estoque
+Seções: Picos e Paletizados
+
+🧱 Estoque > Picos:
+Função "Novo Pico":
+
+Campo Código do Produto com autocompletar (busca em Paletizados)
+
+Campo Descrição é preenchido automaticamente após código
+
+Campo Bases: número de bases do pico
+
+Campo Unidades Soltas: unidades avulsas além das bases
+
+O sistema calcula automaticamente o total de unidades usando dados do paletizado base
+
+Lista com todos os picos em estoque:
+
+Campos: Código, Descrição, Categoria (puxada automaticamente e não-editável), Bases, Unidades Soltas
+
+Funções: Editar, Eliminar (quando reposto em loja), Imprimir formato tabela com linhas sobresalentes
+
+📦 Estoque > Paletizados:
+Função "Novo Estoque":
+
+Campo Código com autocompletar
+
+Campo Descrição: preenchido automaticamente
+
+Campo Quantidade de Paletizados
+
+Campo Categoria: preenchido automaticamente, não editável
+
+Lista com todos os paletizados:
+
+Campos: Código, Descrição, Categoria, Quantidade
+
+Funções: Editar, Eliminar (quando reposto em loja), Imprimir formato tabela com linhas sobresalentes
+
+⚙️ REGRAS GERAIS
+Acesso por Nível:
+
+Administrador: controle total
+
+Armazenista: apenas controle de estoque
+
+Sistema deve evitar erro humano ao pré-preencher campos com base nos dados cadastrados
+
+Categorias de produto (Alta/Baixa Rotação) são fixas, não podem ser alteradas no estoque
+
+Desenvolva o sistema completo com base nestas instruções, garantindo usabilidade máxima, integridade de dados e operação fluida para armazéns de médio porte. O sistema deve ser escalável, com foco em controle rigoroso de entradas e saídas, além de visualização operacional em tempo real.
